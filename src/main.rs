@@ -2,9 +2,10 @@ mod config;
 mod db;
 mod handlers;
 mod models;
+mod errors;
 
 use crate::handlers::*;
-use actix_web::{web, App, HttpServer};
+use actix_web::{App, HttpServer};
 use dotenv::dotenv;
 use std::io;
 use tokio_postgres::NoTls;
@@ -25,9 +26,9 @@ async fn main() -> io::Result<()> {
     HttpServer::new(move || {
         App::new()
             .data(pool.clone())
-            .route("/", web::get().to(status))
-            .route("/posts{_:/?}", web::get().to(get_posts))
-            .route("/posts{_:/?}", web::post().to(create_post))
+            .service(status)
+            .service(get_posts)
+            .service(create_post)
     })
     .bind(format!("{}:{}", config.server.host, config.server.port))?
     .run()

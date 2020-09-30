@@ -1,35 +1,39 @@
-use crate::models::*;
 use crate::db;
-use actix_web::{web, Responder, HttpResponse};
-use deadpool_postgres::{Pool, Client};
+use crate::errors::{AppError, AppErrorType};
+use crate::models::*;
+use actix_web::{get, post, web, HttpResponse, Responder};
+use deadpool_postgres::{Client, Pool};
 
+#[get("/")]
 pub async fn status() -> impl Responder {
-    web::HttpResponse::Ok()
-        .json(Status { status: "UP".to_string() })
+    web::HttpResponse::Ok().json(Status {
+        status: "UP".to_string(),
+    })
 }
 
-pub async fn get_posts(db_pool: web::Data<Pool>) -> impl Responder {
-
-    let client: Client = db_pool.get().await.expect("Error connecting to the database");
+#[get("/posts{_:/?}")]
+pub async fn get_posts(db_pool: web::Data<Pool>) -> Result<impl Responder, AppError> {
+    let client: Client = db_pool.get().await.map_err(AppError::db_error)?;
 
     let result = db::get_posts(&client).await;
 
-    match result {
-        Ok(posts) => HttpResponse::Ok().json(posts),
-        Err(_) => HttpResponse::InternalServerError().into()
-    }
+    result.map(|todos| HttpResponse::Ok().json(todos))
 }
 
-pub async fn create_post(db_pool: web::Data<Pool>, json: web::Json<CreatePost>) -> impl Responder {
+#[post("/posts{_:/?}")]
+pub async fn create_post(db_pool: web::Data<Pool>, json: web::Json<CreatePost>) -> Result<impl Responder, AppError> {
+    let client: Client = db_pool
+        .get()
+        .await
+        .map_err(AppError::db_error)?;
 
-    let client: Client =
-        db_pool.get().await.expect("Error connecting to the database");
+    let result = db::create_post(
+        &client,
+        json.title.clone(),
+        json.subtitle.clone(),
+        json.image_url.clone(),
+    )
+    .await;
 
-    let result = db::create_post(&client, json.title.clone(), json.subtitle.clone(), json.image_url.clone()).await;
-
-    match result {
-        Ok(todo) => HttpResponse::Ok().json(todo),
-        Err(_) => HttpResponse::InternalServerError().into()
-    }
-
+    result.map(|post| HttpResponse::Ok().json(post))
 }
