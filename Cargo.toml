@@ -1,18 +1,21 @@
 [package]
 name = "blog-api"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["viniciusataide <viniciusataid@gmail.com>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-actix-web = "2.0.0"
-actix-rt = "1.0.0"
-serde = { version = "1.0.115", features = ['derive'] }
+actix-web = "3.1.0"
+actix-rt = "1.1.1"
+serde = { version = "1.0.116", features = ['derive'] }
 dotenv = "0.15.0"
 config = "0.10.1"
 tokio-pg-mapper = "0.1.8"
 tokio-pg-mapper-derive = "0.1.5"
 deadpool-postgres = "0.5.6"
 tokio-postgres = "0.5.5"
+slog = "2.5.2"
+slog-term = "2.6.0"
+slog-async = "2.5.0"

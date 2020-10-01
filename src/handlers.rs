@@ -1,35 +1,54 @@
-use crate::models::*;
+use deadpool_postgres::Pool;
+use slog::Logger;
 use crate::db;
-use actix_web::{web, Responder, HttpResponse};
-use deadpool_postgres::{Pool, Client};
+use crate::errors::{AppError};
+use crate::models::*;
+use actix_web::{get, post, web, HttpResponse, Responder};
+use deadpool_postgres::{Client};
+use slog::{o, crit};
 
-pub async fn status() -> impl Responder {
-    web::HttpResponse::Ok()
-        .json(Status { status: "UP".to_string() })
+pub async fn get_client(pool: Pool, log: Logger) -> Result<Client, AppError> {
+    pool.get().await.map_err(|err| {
+        let sublog = log.new(o!("cause" => err.to_string()));
+
+        crit!(sublog, "Error creating client.");
+
+        AppError::db_error(err)
+    })
 }
 
-pub async fn get_posts(db_pool: web::Data<Pool>) -> impl Responder {
+#[get("/")]
+pub async fn status() -> impl Responder {
+    web::HttpResponse::Ok().json(Status {
+        status: "UP".to_string(),
+    })
+}
 
-    let client: Client = db_pool.get().await.expect("Error connecting to the database");
+#[get("/posts{_:/?}")]
+pub async fn get_posts(state: web::Data<AppState>) -> Result<impl Responder, AppError> {
+
+    let log = state.log.new(o!("handler" => "get_posts"));
+
+    let client: Client = get_client(state.pool.clone(), log).await?;
 
     let result = db::get_posts(&client).await;
 
-    match result {
-        Ok(posts) => HttpResponse::Ok().json(posts),
-        Err(_) => HttpResponse::InternalServerError().into()
-    }
+    result.map(|todos| HttpResponse::Ok().json(todos))
 }
 
-pub async fn create_post(db_pool: web::Data<Pool>, json: web::Json<CreatePost>) -> impl Responder {
+#[post("/posts{_:/?}")]
+pub async fn create_post(state: web::Data<AppState>, json: web::Json<CreatePost>) -> Result<impl Responder, AppError> {
+    let log = state.log.new(o!("handler" => "create_posts"));
 
-    let client: Client =
-        db_pool.get().await.expect("Error connecting to the database");
+    let client: Client = get_client(state.pool.clone(), log).await?;
 
-    let result = db::create_post(&client, json.title.clone(), json.subtitle.clone(), json.image_url.clone()).await;
+    let result = db::create_post(
+        &client,
+        json.title.clone(),
+        json.subtitle.clone(),
+        json.image_url.clone(),
+    )
+    .await;
 
-    match result {
-        Ok(todo) => HttpResponse::Ok().json(todo),
-        Err(_) => HttpResponse::InternalServerError().into()
-    }
-
+    result.map(|post| HttpResponse::Ok().json(post))
 }
